@@ -11,6 +11,7 @@ A ComfyUI plugin based on [HY-Motion 1.0](https://github.com/Tencent-Hunyuan/HY-
 - **3D Animation Preview**: Interactive Three.js viewer with playback controls
 - **GLB Export**: Export to GLB format with skeleton animation (no dependencies required)
 - **FBX Export**: Export to standard FBX format for Maya/Blender and other DCC tools
+- **Custom Character Retargeting**: Retarget motion to custom FBX models (Mixamo supported, right now)
 - **NPZ Save**: Save in universal NPZ format
 - **GGUF Support**: Load quantized Qwen3-8B GGUF models for lower VRAM usage
 - **CPU Offload**: Option to run LLM models on CPU to save GPU VRAM
@@ -153,7 +154,31 @@ Interactive 3D animation preview with Three.js viewer.
 > **Note**: This node does NOT automatically save files. You must manually click the "Export GLB" button in the viewer to download the animation file.
 
 ### HY-Motion Export FBX
-Export FBX file (requires fbxsdkpy installation).
+Export FBX file with optional custom Mixamo character retargeting (requires fbxsdkpy installation).
+
+| Parameter | Description |
+|-----------|-------------|
+| motion_data | Motion data from Generate node |
+| output_dir | Output subdirectory in ComfyUI output folder |
+| filename_prefix | Prefix for output filenames |
+| custom_fbx_path | (Optional) Path to custom FBX model for retargeting |
+| yaw_offset | (Optional) Y-axis rotation offset in degrees (-180 to 180) |
+| scale | (Optional) Force scale multiplier (0 = auto) |
+
+#### Custom FBX Path Rules
+
+| Input | Resolved Path |
+|-------|---------------|
+| `3d/char.fbx` | `ComfyUI/input/3d/char.fbx` (default to input/) |
+| `input/3d/char.fbx` | `ComfyUI/input/3d/char.fbx` |
+| `output/3d/char.fbx` | `ComfyUI/output/3d/char.fbx` |
+| `D:\Models\char.fbx` | `D:\Models\char.fbx` (absolute path) |
+| (empty) | Uses default wooden boy model |
+
+#### Supported Rigs
+- **Mixamo**: Full automatic bone mapping with `mixamorig:` prefix
+
+> **Note**: The retargeting code (`retarget_fbx.py`) is adapted from [ComfyUI-HyMotion](https://github.com/Aero-Ex/ComfyUI-HyMotion).
 
 ### HY-Motion Save NPZ
 Save in NPZ format.

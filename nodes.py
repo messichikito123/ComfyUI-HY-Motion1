@@ -778,14 +778,38 @@ class HYMotionSaveNPZ:
 
 class HYMotionExportFBX:
     _fbx_converter = None
+    _fbx_converter_path = None  # Track the template path to detect changes
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-            "motion_data": ("HYMOTION_DATA",),
-            "output_dir": ("STRING", {"default": "hymotion_fbx"}),
-            "filename_prefix": ("STRING", {"default": "motion"}),
-        }}
+        return {
+            "required": {
+                "motion_data": ("HYMOTION_DATA",),
+                "output_dir": ("STRING", {"default": "hymotion_fbx"}),
+                "filename_prefix": ("STRING", {"default": "motion"}),
+            },
+            "optional": {
+                "custom_fbx_path": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "tooltip": "Path to custom FBX model (Mixamo character). Supports: 'input/3d/char.fbx', 'output/3d/char.fbx', or just '3d/char.fbx' (defaults to input/). Leave empty for default wooden boy."
+                }),
+                "yaw_offset": ("FLOAT", {
+                    "default": 0.0,
+                    "min": -180.0,
+                    "max": 180.0,
+                    "step": 1.0,
+                    "tooltip": "Rotate the character around Y-axis in degrees (e.g., 180 to face opposite direction)."
+                }),
+                "scale": ("FLOAT", {
+                    "default": 0.0,
+                    "min": 0.0,
+                    "max": 10.0,
+                    "step": 0.01,
+                    "tooltip": "Force specific scale multiplier. Leave at 0.0 for automatic height-based scaling (recommended)."
+                }),
+            }
+        }
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("fbx_paths",)
@@ -793,25 +817,97 @@ class HYMotionExportFBX:
     CATEGORY = "HY-Motion"
     OUTPUT_NODE = True
 
-    def export(self, motion_data, output_dir, filename_prefix):
+    def _resolve_fbx_path(self, custom_fbx_path):
+        """
+        Resolve custom FBX path with support for relative paths.
+        Rules:
+        - If path starts with 'input/' or 'output/' -> resolve relative to ComfyUI root
+        - If path has no such prefix (e.g., '3d/2.fbx') -> assume 'output/' prefix
+        - If path is absolute and exists -> use as is
+        """
+        print(f"[HY-Motion] DEBUG _resolve_fbx_path called with: '{custom_fbx_path}'")
+
+        if not custom_fbx_path or not custom_fbx_path.strip():
+            print(f"[HY-Motion] DEBUG: custom_fbx_path is empty or None")
+            return None
+
+        path = custom_fbx_path.strip().replace("\\", "/")
+        print(f"[HY-Motion] DEBUG: normalized path = '{path}'")
+
+        # If absolute path and exists, use directly
+        if os.path.isabs(path):
+            print(f"[HY-Motion] DEBUG: path is absolute, exists={os.path.exists(path)}")
+            if os.path.exists(path):
+                return path
+
+        # Get ComfyUI root directory (parent of output dir)
+        comfy_root = os.path.dirname(COMFY_OUTPUT_DIR)
+        print(f"[HY-Motion] DEBUG: COMFY_OUTPUT_DIR = '{COMFY_OUTPUT_DIR}'")
+        print(f"[HY-Motion] DEBUG: comfy_root = '{comfy_root}'")
+
+        # Check if path starts with input/ or output/
+        if path.startswith("input/") or path.startswith("output/"):
+            resolved = os.path.join(comfy_root, path)
+            print(f"[HY-Motion] DEBUG: path has input/output prefix, resolved = '{resolved}'")
+        else:
+            # Default to input/ prefix
+            resolved = os.path.join(comfy_root, "input", path)
+            print(f"[HY-Motion] DEBUG: no prefix, defaulting to input, resolved = '{resolved}'")
+
+        # Normalize path
+        resolved = os.path.normpath(resolved)
+        print(f"[HY-Motion] DEBUG: final resolved path = '{resolved}'")
+        print(f"[HY-Motion] DEBUG: file exists = {os.path.exists(resolved)}")
+
+        if os.path.exists(resolved):
+            return resolved
+        else:
+            print(f"[HY-Motion] Custom FBX path not found: {resolved}")
+            return None
+
+    def export(self, motion_data, output_dir, filename_prefix, custom_fbx_path="", yaw_offset=0.0, scale=0.0):
         from .hymotion.pipeline.body_model import construct_smpl_data_dict
 
-        # Lazy load FBX converter
-        if HYMotionExportFBX._fbx_converter is None:
-            try:
-                import fbx
-                from .hymotion.utils.smplh2woodfbx import SMPLH2WoodFBX
-                template_path = os.path.join(CURRENT_DIR, "assets", "wooden_models", "boy_Rigging_smplx_tex.fbx")
-                HYMotionExportFBX._fbx_converter = SMPLH2WoodFBX(template_fbx_path=template_path)
-                print("[HY-Motion] FBX converter loaded")
-            except ImportError:
-                return ("FBX SDK not installed",)
-            except Exception as e:
-                return (f"FBX converter error: {e}",)
+        print(f"[HY-Motion] ========== EXPORT FBX ==========")
+        print(f"[HY-Motion] DEBUG: custom_fbx_path param = '{custom_fbx_path}'")
+        print(f"[HY-Motion] DEBUG: yaw_offset = {yaw_offset}, scale = {scale}")
 
         out_dir = os.path.join(COMFY_OUTPUT_DIR, output_dir)
         os.makedirs(out_dir, exist_ok=True)
         ts, uid = get_timestamp(), str(uuid.uuid4())[:8]
+
+        # Resolve custom FBX path with relative path support
+        resolved_fbx_path = self._resolve_fbx_path(custom_fbx_path)
+        print(f"[HY-Motion] DEBUG: resolved_fbx_path = '{resolved_fbx_path}'")
+
+        if resolved_fbx_path:
+            # Use retargeting for custom Mixamo/other FBX models
+            print(f"[HY-Motion] Using RETARGET mode with custom FBX: {resolved_fbx_path}")
+            return self._export_with_retarget(motion_data, out_dir, filename_prefix, ts, uid,
+                                               resolved_fbx_path, yaw_offset, scale)
+        else:
+            # Use original wooden boy export
+            print(f"[HY-Motion] Using WOODEN BOY mode (no custom FBX)")
+            return self._export_wooden_boy(motion_data, out_dir, filename_prefix, ts, uid)
+
+    def _export_wooden_boy(self, motion_data, out_dir, filename_prefix, ts, uid):
+        """Original export using wooden boy template"""
+        from .hymotion.pipeline.body_model import construct_smpl_data_dict
+
+        # Lazy load FBX converter
+        template_path = os.path.join(CURRENT_DIR, "assets", "wooden_models", "boy_Rigging_smplx_tex.fbx")
+
+        if HYMotionExportFBX._fbx_converter is None or HYMotionExportFBX._fbx_converter_path != template_path:
+            try:
+                import fbx
+                from .hymotion.utils.smplh2woodfbx import SMPLH2WoodFBX
+                HYMotionExportFBX._fbx_converter = SMPLH2WoodFBX(template_fbx_path=template_path)
+                HYMotionExportFBX._fbx_converter_path = template_path
+                print("[HY-Motion] FBX converter loaded (wooden boy)")
+            except ImportError:
+                return ("FBX SDK not installed",)
+            except Exception as e:
+                return (f"FBX converter error: {e}",)
 
         paths = []
         for i in range(motion_data.batch_size):
@@ -832,6 +928,93 @@ class HYMotionExportFBX:
                         f.write(motion_data.text)
             except Exception as e:
                 print(f"[HY-Motion] FBX export error: {e}")
+
+        if not paths:
+            return ("Export failed",)
+        return ("\n".join([os.path.relpath(p, COMFY_OUTPUT_DIR) for p in paths]),)
+
+    def _export_with_retarget(self, motion_data, out_dir, filename_prefix, ts, uid, target_fbx, yaw_offset, scale):
+        """Export with retargeting to custom FBX model (e.g., Mixamo)"""
+        from .hymotion.pipeline.body_model import construct_smpl_data_dict
+
+        try:
+            from .hymotion.utils.retarget_fbx import (
+                load_npz, load_fbx, load_bone_mapping, retarget_animation,
+                apply_retargeted_animation, save_fbx, HAS_FBX_SDK
+            )
+        except ImportError as e:
+            print(f"[HY-Motion] Retarget import error: {e}")
+            return (f"Retarget module error: {e}",)
+
+        if not HAS_FBX_SDK:
+            return ("FBX SDK not installed",)
+
+        print(f"[HY-Motion] Retargeting to custom FBX: {target_fbx}")
+
+        paths = []
+        mapping = load_bone_mapping("")  # Use built-in Mixamo mappings
+
+        for i in range(motion_data.batch_size):
+            try:
+                # Create temp NPZ from motion_data
+                temp_npz = os.path.join(out_dir, f"_temp_{ts}_{i}.npz")
+                output_fbx = os.path.join(out_dir, f"{filename_prefix}_{ts}_{uid}_{i:03d}.fbx")
+
+                # Prepare data dict
+                data_dict = {}
+                for key in ['keypoints3d', 'rot6d', 'transl', 'root_rotations_mat']:
+                    if key in motion_data.output_dict and motion_data.output_dict[key] is not None:
+                        tensor = motion_data.output_dict[key][i]
+                        if isinstance(tensor, torch.Tensor):
+                            data_dict[key] = tensor.cpu().numpy()
+                        else:
+                            data_dict[key] = np.array(tensor)
+
+                # Add SMPL-H full poses
+                if "rot6d" in data_dict and "transl" in data_dict:
+                    smpl_data = construct_smpl_data_dict(
+                        torch.from_numpy(data_dict["rot6d"]),
+                        torch.from_numpy(data_dict["transl"])
+                    )
+                    for k, v in smpl_data.items():
+                        if k not in data_dict:
+                            data_dict[k] = v
+
+                np.savez(temp_npz, **data_dict)
+
+                # Load source (NPZ) and target (FBX) skeletons
+                src_skel = load_npz(temp_npz)
+                tgt_man, tgt_scene, tgt_skel = load_fbx(target_fbx)
+
+                # Retarget animation
+                force_scale = scale if scale > 0 else 0.0
+                rots, locs = retarget_animation(src_skel, tgt_skel, mapping, force_scale, yaw_offset, neutral_fingers=True)
+
+                # Apply and save
+                src_time_mode = tgt_scene.GetGlobalSettings().GetTimeMode()
+                apply_retargeted_animation(tgt_scene, tgt_skel, rots, locs, src_skel.frame_start, src_skel.frame_end, src_time_mode)
+                save_fbx(tgt_man, tgt_scene, output_fbx)
+
+                paths.append(output_fbx)
+                print(f"[HY-Motion] Retargeted FBX saved: {output_fbx}")
+
+                # Save text description
+                txt_path = output_fbx.replace(".fbx", ".txt")
+                with open(txt_path, "w", encoding="utf-8") as f:
+                    f.write(motion_data.text)
+
+                # Cleanup temp file
+                if os.path.exists(temp_npz):
+                    os.remove(temp_npz)
+
+            except Exception as e:
+                import traceback
+                print(f"[HY-Motion] Retarget error for batch {i}: {e}")
+                traceback.print_exc()
+                # Cleanup temp file on error
+                if 'temp_npz' in locals() and os.path.exists(temp_npz):
+                    os.remove(temp_npz)
+                continue
 
         if not paths:
             return ("Export failed",)
